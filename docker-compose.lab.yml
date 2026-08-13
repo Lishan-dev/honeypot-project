@@ -1,0 +1,41 @@
+# LAB infrastructure for the honeypot project -- not the honeypot code
+# itself. Sets up an isolated Docker network with no external route, so
+# the honeypot container physically cannot reach the internet, and an
+# "attacker" container you can exec into to run test traffic.
+#
+# Create the isolated network first (one-time):
+#   docker network create --internal honeypot-lab-net
+#
+# Then:
+#   docker compose -f docker-compose.lab.yml up -d --build
+#   docker exec -it attacker-lab bash
+#
+# Tear down:
+#   docker compose -f docker-compose.lab.yml down
+#   docker network rm honeypot-lab-net
+
+services:
+  honeypot:
+    build: ./honeypot
+    container_name: honeypot-lab
+    networks:
+      - honeypot-lab-net
+    environment:
+      - HONEYPOT_HOST=0.0.0.0   # safe here: this container has no route out
+      - HONEYPOT_PORT=2222
+      - DB_PATH=/app/data/honeypot.db
+      - FAKE_SHELL_ENABLED=true
+    volumes:
+      - ./data:/app/data
+    restart: "no"
+
+  attacker:
+    image: python:3.12-slim
+    container_name: attacker-lab
+    networks:
+      - honeypot-lab-net
+    command: sleep infinity
+
+networks:
+  honeypot-lab-net:
+    external: true

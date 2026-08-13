@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Honeypot Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+<header>
+  <h1>🍯 Honeypot Dashboard</h1>
+  <p class="warning-banner">⚠️ Lab-only tool. Data shown reflects fake-service interactions only, not real credentials or real system access.</p>
+  <div class="actions">
+    <button id="run-detection-btn">Run Detection Now</button>
+    <a href="/export/events.csv"><button>Export Events (CSV)</button></a>
+    <a href="/export/events.json"><button>Export Events (JSON)</button></a>
+  </div>
+</header>
+
+<section class="metrics-grid">
+  <div class="metric-card"><div class="label">Total Connections</div><div class="value">{{ stats.total_connections }}</div></div>
+  <div class="metric-card"><div class="label">Unique Source IPs</div><div class="value">{{ stats.unique_ips }}</div></div>
+  <div class="metric-card"><div class="label">Auth Attempts</div><div class="value">{{ stats.total_auth_attempts }}</div></div>
+  <div class="metric-card"><div class="label">Command Attempts</div><div class="value">{{ stats.total_commands }}</div></div>
+  <div class="metric-card"><div class="label">Total Alerts</div><div class="value">{{ stats.total_alerts }}</div></div>
+  <div class="metric-card"><div class="label">Active Sessions</div><div class="value">{{ stats.active_sessions }}</div></div>
+</section>
+
+<section class="charts-grid">
+  <div class="card"><h3>Attempts Over Time</h3><canvas id="chart-time"></canvas></div>
+  <div class="card"><h3>Alert Severity Distribution</h3><canvas id="chart-severity"></canvas></div>
+</section>
+
+<section class="tables-grid">
+  <div class="card">
+    <h3>Top Attempted Usernames</h3>
+    <table><thead><tr><th>Username</th><th>Attempts</th></tr></thead><tbody>
+      {% for row in top_usernames %}<tr><td>{{ row.username }}</td><td>{{ row.attempts }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>Top Attempted Passwords
+      {% if not reveal_passwords %}<a href="?reveal=1" class="reveal-link">(show)</a>{% else %}<a href="?" class="reveal-link">(hide)</a>{% endif %}
+    </h3>
+    <table><thead><tr><th>Password</th><th>Attempts</th></tr></thead><tbody>
+      {% for row in top_passwords %}
+        <tr><td>{{ row.password if reveal_passwords else '•' * (row.password|length) }}</td><td>{{ row.attempts }}</td></tr>
+      {% endfor %}
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>Top Commands Attempted</h3>
+    <table><thead><tr><th>Command</th><th>Attempts</th></tr></thead><tbody>
+      {% for row in top_commands %}<tr><td><code>{{ row.command_text }}</code></td><td>{{ row.attempts }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>Top Source IPs</h3>
+    <table><thead><tr><th>IP</th><th>Events</th><th>Sessions</th></tr></thead><tbody>
+      {% for row in top_ips %}<tr><td>{{ row.source_ip }}</td><td>{{ row.event_count }}</td><td>{{ row.session_count }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</section>
+
+<section class="card">
+  <h3>Recent Alerts</h3>
+  <table><thead><tr><th>Time</th><th>Severity</th><th>Rule</th><th>Source IP</th><th>Reason</th></tr></thead><tbody>
+    {% for a in recent_alerts %}
+    <tr>
+      <td>{{ a.created_at }}</td>
+      <td><span class="badge {{ a.severity }}">{{ a.severity }}</span></td>
+      <td>{{ a.rule_name }}</td>
+      <td>{{ a.source_ip }}</td>
+      <td>{{ a.reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h3>Recent Sessions</h3>
+  <table><thead><tr><th>Session</th><th>Source IP</th><th>Started</th><th>Ended</th><th>Events</th><th>Closed Reason</th></tr></thead><tbody>
+    {% for s in recent_sessions %}
+    <tr>
+      <td><a href="/session/{{ s.session_id }}">{{ s.session_id[:8] }}…</a></td>
+      <td>{{ s.source_ip }}</td>
+      <td>{{ s.started_at }}</td>
+      <td>{{ s.ended_at or '—' }}</td>
+      <td>{{ s.event_count }}</td>
+      <td>{{ s.closed_reason or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody></table>
+</section>
+
+<script>
+const timeData = {{ attempts_over_time | tojson }};
+new Chart(document.getElementById('chart-time'), {
+  type: 'line',
+  data: { labels: timeData.map(d => d.bucket), datasets: [{ label: 'Connections', data: timeData.map(d => d.count), borderColor: '#4f7cff', tension: 0.3 }] },
+  options: { plugins: { legend: { display: false } } }
+});
+
+const sevData = {{ severity_dist | tojson }};
+new Chart(document.getElementById('chart-severity'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(sevData),
+    datasets: [{ data: Object.values(sevData), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#ef4444'] }]
+  }
+});
+
+document.getElementById('run-detection-btn').addEventListener('click', async () => {
+  const resp = await fetch('/api/run-detection', { method: 'POST' });
+  const data = await resp.json();
+  alert(`Detection pass complete: ${data.alerts_generated} new alert(s). Reloading...`);
+  location.reload();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><title>Session {{ session.session_id }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" /></head>
+<body>
+<a href="/">&larr; Back to dashboard</a>
+<h2>Session {{ session.session_id }}</h2>
+<p><b>Source:</b> {{ session.source_ip }}:{{ session.source_port }} &nbsp;
+   <b>Started:</b> {{ session.started_at }} &nbsp;
+   <b>Ended:</b> {{ session.ended_at or 'still open' }} &nbsp;
+   <b>Closed reason:</b> {{ session.closed_reason or '—' }}</p>
+
+<table><thead><tr><th>Time</th><th>Type</th><th>Username</th><th>Password</th><th>Command</th></tr></thead><tbody>
+  {% for e in events %}
+  <tr>
+    <td>{{ e.timestamp }}</td>
+    <td>{{ e.event_type }}</td>
+    <td>{{ e.username or '—' }}</td>
+    <td>{{ e.password or '—' }}</td>
+    <td><code>{{ e.command_text or '—' }}</code></td>
+  </tr>
+  {% endfor %}
+</tbody></table>
+</body>
+</html>
